@@ -1,0 +1,15 @@
+{
+    "name": "html5-tetris-game",
+    "version": "1.0.0",
+    "description": "HTML5 Canvas Tetris Game",
+    "main": "main.js",
+    "scripts": {
+        "test": "jest"
+    },
+    "keywords": ["tetris", "canvas", "html5", "javascript"],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "jest": "^29.0.0"
+    }
+}

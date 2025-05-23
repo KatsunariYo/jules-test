@@ -52,3 +52,21 @@ This is a basic implementation of the classic game Tetris, built using JavaScrip
 -   Touch controls for mobile devices
 
 Enjoy the game!
+
+## Running Tests
+
+This project uses Jest for unit testing the line clearing logic.
+
+1.  **Install Dependencies:**
+    Navigate to the project's root directory in your terminal and run:
+    ```bash
+    npm install
+    ```
+    This will install Jest and any other development dependencies listed in `package.json`.
+
+2.  **Run Tests:**
+    To execute the unit tests, run the following command from the project's root directory:
+    ```bash
+    npm test
+    ```
+    Jest will run the tests located in the `/tests` directory and output the results to your console.

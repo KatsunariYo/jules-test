@@ -330,3 +330,6 @@ function finishLineClearing() {
 }
 
 // Keyboard controls will be in main.js
+
+// Exports for testing
+export { clearLines, finishLineClearing };
