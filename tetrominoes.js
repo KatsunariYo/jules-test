@@ -10,7 +10,8 @@ export const COLORS = [
     '#F538FF', // O
     '#FF8E0D', // S
     '#FFE138', // T
-    '#3877FF'  // Z
+    '#3877FF',  // Z
+    '#FFFFFF'  // 8 - Animation color (white)
 ];
 
 export const SHAPES = {

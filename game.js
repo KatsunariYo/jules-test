@@ -3,6 +3,9 @@ import { COLS, ROWS, BLOCK_SIZE, COLORS, SHAPES, TETROMINOES } from './tetromino
 // Game Board
 let board = [];
 let score = 0;
+let linesToClearAnimation = []; // Stores objects like { index: y, startTime: 0 }
+let isAnimatingLineClear = false;
+const LINE_CLEAR_ANIMATION_DURATION = 400; // ms
 let currentPiece;
 let nextPiece;
 
@@ -75,22 +78,38 @@ function getRandomPiece() {
 
 // Drawing functions
 function draw() {
-    // Draw board
     mainCtx.clearRect(0, 0, mainCtx.canvas.width, mainCtx.canvas.height);
+
     board.forEach((row, y) => {
         row.forEach((value, x) => {
             if (value > 0) {
-                mainCtx.fillStyle = COLORS[value];
+                if (isAnimatingLineClear && value === 8) { // Line marked for clearing
+                    // Simple flashing effect: alternate color rapidly
+                    const elapsed = lastTime - linesToClearAnimation[0].startTime; // Assuming all lines start animation at the same time for simplicity
+                    const flashState = Math.floor(elapsed / 100) % 2; // Change state every 100ms
+                    mainCtx.fillStyle = flashState === 0 ? COLORS[value] : '#DDDDDD'; // Flash between white (COLORS[8]) and light gray
+                } else {
+                    mainCtx.fillStyle = COLORS[value];
+                }
                 mainCtx.fillRect(x, y, 1, 1);
-                mainCtx.strokeStyle = '#333'; // Block outline
+                mainCtx.strokeStyle = '#333';
                 mainCtx.lineWidth = 0.05;
                 mainCtx.strokeRect(x, y, 1, 1);
             }
         });
     });
 
-    // Draw current piece
-    drawPiece(currentPiece, mainCtx);
+    // Draw current piece (if not animating, or if you want piece to be visible on top)
+    // For now, let's assume the current piece is not drawn or is handled appropriately
+    // if it's part of the cleared line scenario (which it shouldn't be, as it's merged first).
+    if (currentPiece && !isAnimatingLineClear) { // Potentially hide piece or handle differently during animation
+        drawPiece(currentPiece, mainCtx);
+    } else if (currentPiece && isAnimatingLineClear) {
+        // Decide if you want to draw the falling piece during line clear animation.
+        // For simplicity, let's draw it. It should not overlap with the lines being cleared.
+        drawPiece(currentPiece, mainCtx);
+    }
+    // The nextPiece is drawn separately and should be unaffected.
 }
 
 function drawNextPiece() {
@@ -128,9 +147,12 @@ export function movePiece(dx, dy) {
         currentPiece = newPiece;
     } else if (dy > 0) { // Trying to move down but collided
         mergePieceToBoard();
-        clearLines();
-        spawnNewPiece();
-        spawnNextPiece();
+        const linesClearedCount = clearLines(); // Call clearLines
+        if (!isAnimatingLineClear) { // If no lines are being animated, spawn next piece immediately
+            spawnNewPiece();
+            spawnNextPiece();
+        }
+        // If isAnimatingLineClear is true, spawning will be handled after animation.
     }
     draw();
 }
@@ -213,20 +235,31 @@ function mergePieceToBoard() {
 }
 
 function clearLines() {
-    let linesCleared = 0;
+    if (isAnimatingLineClear) return 0; // Don't check for new lines if already animating
+
+    let linesFound = [];
     for (let r = ROWS - 1; r >= 0; r--) {
-        if (board[r].every(cell => cell > 0)) {
-            linesCleared++;
-            board.splice(r, 1); // Remove the row
-            board.unshift(Array(COLS).fill(0)); // Add an empty row at the top
-            r++; // Re-check the current row index as rows shifted
+        if (board[r].every(cell => cell > 0 && cell !== 8)) { // Assuming 8 is a new "clearing" color index
+            linesFound.push(r);
         }
     }
-    if (linesCleared > 0) {
-        // Update score based on lines cleared (example: 100 per line, bonus for more)
-        score += linesCleared * 100 * linesCleared; // e.g. 1 line = 100, 2 lines = 400, 3 = 900, 4 = 1600
-        updateScoreDisplay();
+
+    if (linesFound.length > 0) {
+        isAnimatingLineClear = true;
+        linesToClearAnimation = linesFound.map(index => ({ index, startTime: lastTime })); // Store current time for animation start
+
+        // Mark lines for animation (e.g., change their color temporarily)
+        linesFound.forEach(rowIndex => {
+            for (let c = 0; c < COLS; c++) {
+                board[rowIndex][c] = 8; // Use a special color/value for animating lines (e.g., white or a distinct color)
+                                     // Ensure COLORS array has an entry for index 8, e.g., 'white'
+            }
+        });
+        // The actual removal and scoring will happen after the animation.
+        // We return the number of lines found so that other logic (like piece locking) knows lines were hit.
+        return linesFound.length;
     }
+    return 0;
 }
 
 function updateScoreDisplay() {
@@ -244,14 +277,65 @@ function gameLoop(time = 0) {
     const deltaTime = time - lastTime;
     lastTime = time;
 
-    dropCounter += deltaTime;
-    if (dropCounter > dropInterval) {
-        movePiece(0, 1); // Move piece down automatically
-        dropCounter = 0;
+    if (isAnimatingLineClear) {
+        // Assuming linesToClearAnimation is not empty if isAnimatingLineClear is true
+        if (linesToClearAnimation.length > 0 && (time - linesToClearAnimation[0].startTime > LINE_CLEAR_ANIMATION_DURATION)) {
+            finishLineClearing();
+        }
+    } else { // Only process game logic like piece dropping if not animating
+        dropCounter += deltaTime;
+        if (dropCounter > dropInterval) {
+            movePiece(0, 1); // Move piece down automatically
+            dropCounter = 0;
+        }
     }
 
     draw();
     requestAnimationFrame(gameLoop);
+}
+
+// Add this new function in game.js
+function finishLineClearing() {
+    let linesClearedCount = 0;
+    // Iterate downwards to correctly handle splicing multiple lines
+    // The rows in linesToClearAnimation are sorted from highest index to lowest (bottom of the board to top)
+    // So, when we remove a line, the indices of lines above it don't change relative to the board array.
+    // However, it's simpler to iterate from the top of the board (lowest index in linesToClearAnimation array after sorting if needed)
+    // or ensure linesToClearAnimation is sorted by index ascendingly if it's not already.
+    // For now, let's assume linesToClearAnimation has indices in the order they were found (bottom-up),
+    // which means we should process them in a way that accounts for shifting.
+    // A common robust way is to sort them by index ascendingly first, or iterate from the top.
+    // Or, remove from bottom and adjust subsequent indices.
+
+    // Let's ensure linesToClearAnimation is sorted by row index in ascending order (top-most line first)
+    // This is important if linesFound in clearLines pushes them in a different order (e.g. bottom-up)
+    linesToClearAnimation.sort((a, b) => a.index - b.index);
+
+
+    for (let i = 0; i < linesToClearAnimation.length; i++) {
+        // Each time a line is removed, the effective index of subsequent lines (that were originally below it)
+        // effectively shifts up by one.
+        // Since we sorted linesToClearAnimation by original row index (ascending),
+        // we need to subtract the number of lines already cleared in this batch.
+        const rowIndex = linesToClearAnimation[i].index - linesClearedCount;
+        
+        board.splice(rowIndex, 1);
+        board.unshift(Array(COLS).fill(0));
+        linesClearedCount++;
+    }
+
+    if (linesClearedCount > 0) {
+        score += linesClearedCount * 100 * linesClearedCount; // e.g. 1 line = 100, 2 lines = 400, etc.
+        updateScoreDisplay();
+    }
+
+    isAnimatingLineClear = false;
+    linesToClearAnimation = [];
+
+    // Resume game
+    spawnNewPiece();
+    spawnNextPiece();
+    dropCounter = 0; // Reset drop counter for the new piece
 }
 
 // Keyboard controls will be in main.js
