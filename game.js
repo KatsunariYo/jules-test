@@ -296,41 +296,32 @@ function gameLoop(time = 0) {
 
 // Add this new function in game.js
 function finishLineClearing() {
-    let linesClearedCount = 0;
-    // Iterate downwards to correctly handle splicing multiple lines
-    // The rows in linesToClearAnimation are sorted from highest index to lowest (bottom of the board to top)
-    // So, when we remove a line, the indices of lines above it don't change relative to the board array.
-    // However, it's simpler to iterate from the top of the board (lowest index in linesToClearAnimation array after sorting if needed)
-    // or ensure linesToClearAnimation is sorted by index ascendingly if it's not already.
-    // For now, let's assume linesToClearAnimation has indices in the order they were found (bottom-up),
-    // which means we should process them in a way that accounts for shifting.
-    // A common robust way is to sort them by index ascendingly first, or iterate from the top.
-    // Or, remove from bottom and adjust subsequent indices.
+    let linesClearedThisTurn = 0; // Renamed to avoid confusion with any higher scope variable if present
 
-    // Let's ensure linesToClearAnimation is sorted by row index in ascending order (top-most line first)
-    // This is important if linesFound in clearLines pushes them in a different order (e.g. bottom-up)
-    linesToClearAnimation.sort((a, b) => a.index - b.index);
-
+    // Sort lines by index in descending order (e.g., [19, 18, 17])
+    // This ensures that splicing higher rows doesn't affect the indices of lower rows yet to be processed.
+    linesToClearAnimation.sort((a, b) => b.index - a.index);
 
     for (let i = 0; i < linesToClearAnimation.length; i++) {
-        // Each time a line is removed, the effective index of subsequent lines (that were originally below it)
-        // effectively shifts up by one.
-        // Since we sorted linesToClearAnimation by original row index (ascending),
-        // we need to subtract the number of lines already cleared in this batch.
-        const rowIndex = linesToClearAnimation[i].index - linesClearedCount;
+        const originalRowIndex = linesToClearAnimation[i].index;
         
-        board.splice(rowIndex, 1);
+        // Remove the line at its original index. Since we sorted descending,
+        // removing line 19 doesn't change index of line 18 when its turn comes.
+        board.splice(originalRowIndex, 1);
+        
+        // Add a new empty row at the top of the board
         board.unshift(Array(COLS).fill(0));
-        linesClearedCount++;
+        
+        linesClearedThisTurn++;
     }
 
-    if (linesClearedCount > 0) {
-        score += linesClearedCount * 100 * linesClearedCount; // e.g. 1 line = 100, 2 lines = 400, etc.
+    if (linesClearedThisTurn > 0) {
+        score += linesClearedThisTurn * 100 * linesClearedThisTurn;
         updateScoreDisplay();
     }
 
     isAnimatingLineClear = false;
-    linesToClearAnimation = [];
+    linesToClearAnimation = []; // Clear the array for the next cycle
 
     // Resume game
     spawnNewPiece();
